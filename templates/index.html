@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Search Game</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #fdfde3; }
+        h1 { color: #444; }
+        canvas { border: 2px solid black; margin-top: 20px; cursor: pointer; }
+        #word-list { margin-top: 20px; text-align: left; display: inline-block; background: #ffffff; padding: 10px; border-radius: 5px; font-weight: bold; }
+        select { padding: 8px; cursor: pointer; margin-top: 10px; }
+        .found-word { text-decoration: line-through; color: gray; }
+
+        /* Pop-up styling */
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            border-radius: 10px;
+        }
+        .popup button {
+            margin-top: 10px;
+            padding: 10px 15px;
+            border: none;
+            cursor: pointer;
+        }
+        .popup button:hover {
+            background: #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Word Search Game</h1>
+
+    <!-- Dropdown to select puzzle type -->
+    <label for="topicSelect">Choose a topic:</label>
+    <select id="topicSelect">
+        <!-- Topics will be dynamically inserted here -->
+    </select>
+
+    <br>
+    <canvas id="wordCanvas"></canvas>
+    <div id="word-list"></div>
+
+    <!-- Popup for game completion -->
+    <div id="gameCompletePopup" class="popup">
+        <h2>🎉 Congratulations! 🎉</h2>
+        <p>You've found all the words!</p>
+        <button onclick="loadPuzzle(); closePopup()">Play Again</button>
+        <button onclick="closePopup()">Close</button>
+    </div>
+
+    <script>
+        let grid = [];
+        let words = [];
+        let solution = [];
+        let cellSize = 40;
+        let selecting = false;
+        let selectedCells = [];
+        let foundWords = new Set();
+        let foundWordPositions = {};
+        const colors = ["#a4f2a4", "#99ccff", "#ffb3b3", "#f7dc6f", "#c39bd3", "#ff9966", "#85c1e9"];
+
+        function loadTopics() {
+            $.ajax({
+                url: "/get_topics",
+                type: "GET",
+                success: function(data) {
+                    let topicSelect = $("#topicSelect");
+                    topicSelect.empty();
+
+                    if (data.topics.length === 0) {
+                        topicSelect.append(new Option("No topics available", ""));
+                        return;
+                    }
+
+                    data.topics.forEach(topic => {
+                        topicSelect.append(new Option(topic, topic));
+                    });
+
+                    // Automatically load the first topic
+                    loadPuzzle();
+                },
+                error: function(err) {
+                    console.error("❌ Error fetching topics:", err);
+                }
+            });
+        }
+
+        function loadPuzzle() {
+            let topic = $("#topicSelect").val();
+            $.ajax({
+                url: "/generate",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ topic: topic }),
+                success: function(data) {
+                    grid = data.grid;
+                    words = data.words;
+                    solution = data.solution;
+                    foundWords.clear();
+                    foundWordPositions = {};
+                    drawGrid();
+                    updateWordList();
+                },
+                error: function(err) {
+                    console.error("❌ Error fetching puzzle:", err);
+                }
+            });
+        }
+
+        function drawGrid(highlightedCells = []) {
+            let canvas = document.getElementById("wordCanvas");
+            let ctx = canvas.getContext("2d");
+
+            canvas.width = grid[0].length * cellSize;
+            canvas.height = grid.length * cellSize;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.font = "20px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            // Draw found words first
+            Object.values(foundWordPositions).forEach(wordData => {
+                ctx.fillStyle = wordData.color;
+                wordData.positions.forEach(cell => {
+                    ctx.fillRect(cell[1] * cellSize, cell[0] * cellSize, cellSize, cellSize);
+                });
+            });
+
+            // Draw selection highlight while dragging
+            if (highlightedCells.length > 0) {
+                ctx.fillStyle = "#d3d3d3";
+                highlightedCells.forEach(cell => {
+                    ctx.fillRect(cell[1] * cellSize, cell[0] * cellSize, cellSize, cellSize);
+                });
+            }
+
+            // Draw letters
+            for (let i = 0; i < grid.length; i++) {
+                for (let j = 0; j < grid[i].length; j++) {
+                    ctx.fillStyle = "black";
+                    ctx.fillText(grid[i][j], j * cellSize + cellSize / 2, i * cellSize + cellSize / 2);
+                }
+            }
+        }
+
+        function updateWordList() {
+            let wordListDiv = $("#word-list");
+            wordListDiv.empty();
+            wordListDiv.append("<h3>Find these words:</h3>");
+            words.forEach(word => {
+                let wordClass = foundWords.has(word) ? "found-word" : "";
+                wordListDiv.append(`<p class="${wordClass}" id="word-${word}">${word}</p>`);
+            });
+
+            // Check if all words are found
+            if (foundWords.size === words.length) {
+                showPopup();
+            }
+        }
+
+        function markWordAsFound(word) {
+            $(`#word-${word}`).addClass("found-word");
+        }
+
+        function showPopup() {
+            document.getElementById("gameCompletePopup").style.display = "block";
+        }
+
+        function closePopup() {
+            document.getElementById("gameCompletePopup").style.display = "none";
+        }
+
+        // Handle word selection with click & drag
+        let startX, startY;
+
+        document.getElementById("wordCanvas").addEventListener("mousedown", function(event) {
+            selecting = true;
+            selectedCells = [];
+            let col = Math.floor(event.offsetX / cellSize);
+            let row = Math.floor(event.offsetY / cellSize);
+            startX = col;
+            startY = row;
+            selectedCells.push([row, col]);
+            drawGrid(selectedCells);
+        });
+
+        document.getElementById("wordCanvas").addEventListener("mousemove", function(event) {
+            if (selecting) {
+                let col = Math.floor(event.offsetX / cellSize);
+                let row = Math.floor(event.offsetY / cellSize);
+
+                if (row === startY || col === startX || Math.abs(row - startY) === Math.abs(col - startX)) {
+                    let lastCell = selectedCells[selectedCells.length - 1];
+                    if (lastCell[0] !== row || lastCell[1] !== col) {
+                        selectedCells.push([row, col]);
+                        drawGrid(selectedCells);
+                    }
+                }
+            }
+        });
+
+
+
+        document.getElementById("wordCanvas").addEventListener("mouseup", function() {
+            selecting = false;
+
+            let word = selectedCells.map(cell => grid[cell[0]][cell[1]]).join("");
+
+            if (words.includes(word) && !foundWords.has(word)) {
+                let wordColor = colors[foundWords.size % colors.length];
+                foundWords.add(word);
+                foundWordPositions[word] = { positions: [...selectedCells], color: wordColor };
+
+                markWordAsFound(word);
+            }
+
+            drawGrid();
+            updateWordList();
+            selectedCells = [];
+        });
+
+        $("#topicSelect").on("change", function() {
+            loadPuzzle();
+        });
+
+        $(document).ready(function() {
+            loadTopics();
+        });
+    </script>
+</body>
+</html>
