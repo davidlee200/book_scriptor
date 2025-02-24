@@ -1,28 +1,34 @@
+from flask import Flask, render_template, jsonify, request
 import random
 import numpy as np
-from flask import Flask, render_template, jsonify, request
 
 app = Flask(__name__)
 
+# Grid size for the word search
 GRID_SIZE = 12
 WORDS_PER_PUZZLE = 10
 MAX_ATTEMPTS = 50
 
-# Hardcoded topics and words
-WORDS = {
-    "Animals": ["LION", "TIGER", "BEAR", "EAGLE", "SHARK", "WOLF", "ZEBRA", "HORSE", "SNAKE", "FROG"],
-    "Fruits": ["APPLE", "BANANA", "ORANGE", "GRAPE", "MANGO", "PEACH", "PLUM", "CHERRY", "LEMON", "KIWI"],
-    "Countries": ["INDIA", "CANADA", "FRANCE", "BRAZIL", "CHINA", "JAPAN", "EGYPT", "GERMANY", "ITALY", "SPAIN"]
+# 🔹 HARD-CODED TOPICS AND WORDS
+TOPIC_WORDS = {
+    "Technology": ["PYTHON", "FLASK", "STREAMLIT", "AIRFLOW", "PANDAS", "SQL", "SNOWFLAKE",
+                   "DASH", "TABLEAU", "NUMPY", "MACHINE", "LEARNING", "PIPELINE", "KUBERNETES"],
+    "Sports": ["FOOTBALL", "BASKETBALL", "TENNIS", "BASEBALL", "HOCKEY", "SOCCER", "CRICKET",
+               "GOLF", "RUGBY", "WRESTLING", "BOXING", "MOTORSPORT", "SWIMMING", "CYCLING"],
+    "Movies": ["INCEPTION", "TITANIC", "AVENGERS", "GLADIATOR", "JOKER", "MATRIX", "STARWARS",
+               "INTERSTELLAR", "GODFATHER", "BATMAN", "SUPERMAN", "HOBBIT", "JURASSIC", "ALIEN"],
+    "Sitcoms": ["FRIENDS", "SEINFELD", "BIGBANG", "OFFICE", "BROOKLYN", "CHEERS", "SCRUBS",
+                "SIMPSONS", "FAMILYGUY", "HOWIMET", "PARKS", "MASH", "MODERNFAMILY", "ARRESTED"],
 }
 
 
 def create_grid(size):
-    """ Creates an empty grid filled with spaces """
+    """Creates an empty grid filled with spaces."""
     return np.full((size, size), " ", dtype=str)
 
 
 def can_place_word(grid, word, row, col, direction):
-    """ Check if a word can be placed without overwriting existing letters. """
+    """Checks if a word can be placed without overwriting existing letters."""
     word_len = len(word)
     if direction == "HORIZONTAL":
         return col + word_len <= GRID_SIZE and all(grid[row, col + i] in [" ", word[i]] for i in range(word_len))
@@ -35,7 +41,7 @@ def can_place_word(grid, word, row, col, direction):
 
 
 def place_words(grid, words):
-    """ Try placing words in the grid, ensuring all words are successfully placed """
+    """Try placing words in the grid, ensuring all words are successfully placed."""
     placed_words = []
     directions = ["HORIZONTAL", "VERTICAL", "DIAGONAL"]
 
@@ -64,7 +70,7 @@ def place_words(grid, words):
 
 
 def fill_grid(grid):
-    """ Fill remaining empty cells with random letters """
+    """Fills remaining empty cells with random letters."""
     for i in range(GRID_SIZE):
         for j in range(GRID_SIZE):
             if grid[i, j] == " ":
@@ -73,15 +79,23 @@ def fill_grid(grid):
 
 @app.route("/")
 def index():
-    return render_template("index.html", topics=list(WORDS.keys()))
+    """Loads the main HTML page with available topics."""
+    return render_template("index.html", topics=list(TOPIC_WORDS.keys()))
+
+
+@app.route("/get_topics")
+def get_topics():
+    """Returns the list of hardcoded topics."""
+    return jsonify({"topics": list(TOPIC_WORDS.keys())})
 
 
 @app.route("/generate", methods=["POST"])
 def generate():
+    """Generates a word search puzzle for the selected topic."""
     data = request.get_json()
-    topic = data.get("topic", "Animals")
-    words = WORDS.get(topic, [])
+    topic = data.get("topic", "Technology")  # Default to "Technology" if no topic is selected
 
+    words = random.sample(TOPIC_WORDS[topic], min(WORDS_PER_PUZZLE, len(TOPIC_WORDS[topic])))
     grid = create_grid(GRID_SIZE)
     placed_words = place_words(grid, words)
     fill_grid(grid)
