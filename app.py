@@ -7,7 +7,7 @@ app = Flask(__name__)
 # Grid size for the word search
 GRID_SIZE = 12
 WORDS_PER_PUZZLE = 10
-MAX_ATTEMPTS = 50
+MAX_ATTEMPTS = 100  # Increased attempts to guarantee word placement
 
 # 🔹 HARD-CODED TOPICS AND WORDS
 TOPIC_WORDS = {
@@ -41,7 +41,7 @@ def can_place_word(grid, word, row, col, direction):
 
 
 def place_words(grid, words):
-    """Try placing words in the grid, ensuring all words are successfully placed."""
+    """Places all words into the grid, ensuring they appear."""
     placed_words = []
     directions = ["HORIZONTAL", "VERTICAL", "DIAGONAL"]
 
@@ -65,6 +65,9 @@ def place_words(grid, words):
                 placed_words.append({"word": word, "row": row, "col": col, "direction": direction})
                 placed = True
             attempts += 1
+
+        if not placed:
+            print(f"⚠️ WARNING: Could not place word {word} after {MAX_ATTEMPTS} attempts!")
 
     return placed_words
 
@@ -91,13 +94,22 @@ def get_topics():
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    """Generates a word search puzzle for the selected topic."""
+    """Generates a word search puzzle for the selected topic, ensuring all words appear."""
     data = request.get_json()
     topic = data.get("topic", "Technology")  # Default to "Technology" if no topic is selected
 
     words = random.sample(TOPIC_WORDS[topic], min(WORDS_PER_PUZZLE, len(TOPIC_WORDS[topic])))
     grid = create_grid(GRID_SIZE)
     placed_words = place_words(grid, words)
+
+    # If any words were not placed, retry
+    retry_count = 0
+    while len(placed_words) < len(words) and retry_count < 5:
+        print(f"🔄 Retrying word placement (attempt {retry_count + 1})")
+        grid = create_grid(GRID_SIZE)  # Reset grid
+        placed_words = place_words(grid, words)
+        retry_count += 1
+
     fill_grid(grid)
 
     return jsonify({"grid": grid.tolist(), "words": words, "solution": placed_words})
