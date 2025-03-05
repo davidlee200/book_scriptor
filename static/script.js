@@ -135,7 +135,7 @@ function markWordAsFound(word) {
     $(`#word-${word}`).addClass("found-word");
 }
 
-// ✅ Improved function for getting touch & mouse coordinates
+// ✅ Improved function for getting touch & mouse coordinates (fixes scroll issue)
 function getCellCoordinates(event) {
     let canvas = document.getElementById("wordCanvas");
     let rect = canvas.getBoundingClientRect();
@@ -143,11 +143,11 @@ function getCellCoordinates(event) {
     let x, y;
 
     if (event.touches) {
-        x = event.touches[0].pageX - rect.left;
-        y = event.touches[0].pageY - rect.top;
+        x = event.touches[0].pageX - rect.left - window.scrollX;
+        y = event.touches[0].pageY - rect.top - window.scrollY;
     } else {
-        x = event.clientX - rect.left;
-        y = event.clientY - rect.top;
+        x = event.clientX - rect.left - window.scrollX;
+        y = event.clientY - rect.top - window.scrollY;
     }
 
     // Adjust for device pixel ratio
