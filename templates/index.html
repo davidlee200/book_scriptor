@@ -25,7 +25,13 @@
         <button onclick="loadPuzzle(); closePopup()">Play Again</button>
         <button onclick="closePopup()">Close</button>
     </div>
-
+    <div id="gameCompletePopup" class="popup">
+    <h2>🎉 Congratulations! 🎉</h2>
+    <p>You've found all the words!</p>
+    <button onclick="playAgain()">Play Again</button>
+    <button onclick="closePopup()">Close</button>
+</div>
+á
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

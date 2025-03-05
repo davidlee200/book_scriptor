@@ -5,7 +5,9 @@ let foundWords = new Set();
 let foundWordPositions = {};
 let selecting = false;
 let selectedCells = [];
-const colors = ["#a4f2a4", "#99ccff", "#ffb3b3", "#f7dc6f", "#c39bd3", "#ff9966", "#85c1e9"];
+
+// 🎨 Pastel Colors for Found Words
+const pastelColors = ["#FFD1DC", "#FFDFBA", "#D4A5A5", "#A8D5BA", "#B5EAD7", "#C7CEEA", "#FFB3BA", "#FFDAC1", "#FF9AA2", "#D9D9D9"];
 
 function loadTopics() {
     $.ajax({
@@ -24,7 +26,6 @@ function loadTopics() {
                 topicSelect.append(new Option(topic, topic));
             });
 
-            // Load the first topic automatically
             loadPuzzle();
         },
         error: function(err) {
@@ -35,8 +36,6 @@ function loadTopics() {
 
 function loadPuzzle() {
     let topic = $("#topicSelect").val();
-
-    // 🛑 Reset Found Words & Grid Before Loading a New Puzzle
     foundWords.clear();
     foundWordPositions = {};
     grid = [];
@@ -51,8 +50,6 @@ function loadPuzzle() {
         success: function(data) {
             grid = data.grid;
             words = data.words;
-            foundWords.clear();
-            foundWordPositions = {};
             drawGrid();
             updateWordList();
         },
@@ -62,11 +59,11 @@ function loadPuzzle() {
     });
 }
 
-function drawGrid(highlightedCells = []) {
+function drawGrid() {
     let canvas = document.getElementById("wordCanvas");
     let ctx = canvas.getContext("2d");
 
-    if (!grid.length) return; // 🛑 Prevent drawing if grid is empty
+    if (!grid.length) return;
 
     let gridSize = grid.length;
     canvas.width = gridSize * cellSize;
@@ -77,29 +74,47 @@ function drawGrid(highlightedCells = []) {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    // Draw found words first
-    Object.values(foundWordPositions).forEach(wordData => {
-        ctx.fillStyle = wordData.color;
-        wordData.positions.forEach(cell => {
-            ctx.fillRect(cell[1] * cellSize, cell[0] * cellSize, cellSize, cellSize);
-        });
+    // ✅ Draw found words overlay (Each found word gets a pastel color)
+    Object.keys(foundWordPositions).forEach((word, index) => {
+        ctx.globalAlpha = 0.6; // Less transparent for found words
+        ctx.fillStyle = pastelColors[index % pastelColors.length]; // Assign unique pastel color
+        drawWordOverlay(ctx, foundWordPositions[word].positions);
     });
 
-    // Highlight selection
-    if (highlightedCells.length > 0) {
-        ctx.fillStyle = "#d3d3d3";
-        highlightedCells.forEach(cell => {
-            ctx.fillRect(cell[1] * cellSize, cell[0] * cellSize, cellSize, cellSize);
-        });
-    }
-
-    // Draw letters
+    // ✅ Draw letters (so they appear above highlights)
+    ctx.globalAlpha = 1; // Reset transparency for text
     for (let i = 0; i < grid.length; i++) {
         for (let j = 0; j < grid[i].length; j++) {
             ctx.fillStyle = "black";
             ctx.fillText(grid[i][j], j * cellSize + cellSize / 2, i * cellSize + cellSize / 2);
         }
     }
+
+    // ✅ Highlight ongoing selection (transparent gray)
+    if (selectedCells.length > 0) {
+        ctx.globalAlpha = 0.3;  // Keep the selection transparent
+        ctx.fillStyle = "#A0A0A0"; // Soft grey for selection
+        drawWordOverlay(ctx, selectedCells);
+    }
+
+    ctx.globalAlpha = 1; // Reset transparency for normal rendering
+}
+
+// ✅ Smooth overlay highlight for words
+function drawWordOverlay(ctx, cells) {
+    if (cells.length < 2) return;
+
+    let startX = cells[0][1] * cellSize + cellSize / 2;
+    let startY = cells[0][0] * cellSize + cellSize / 2;
+    let endX = cells[cells.length - 1][1] * cellSize + cellSize / 2;
+    let endY = cells[cells.length - 1][0] * cellSize + cellSize / 2;
+
+    ctx.beginPath();
+    ctx.lineWidth = cellSize / 2;
+    ctx.lineCap = "round";
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
 }
 
 function updateWordList() {
@@ -112,20 +127,12 @@ function updateWordList() {
     });
 
     if (foundWords.size === words.length) {
-        showPopup();
+        showPopup();  // 🎉 Show the completion popup when all words are found
     }
 }
 
 function markWordAsFound(word) {
-    $(`#word-${word}`).addClass("found-word");  // Add strike-through effect
-}
-
-function showPopup() {
-    document.getElementById("gameCompletePopup").style.display = "block";
-}
-
-function closePopup() {
-    document.getElementById("gameCompletePopup").style.display = "none";
+    $(`#word-${word}`).addClass("found-word");
 }
 
 // ✅ Selection Logic (Mouse & Touch Support)
@@ -142,7 +149,7 @@ function handleStart(event) {
     selectedCells = [];
     let [row, col] = getCellCoordinates(event);
     selectedCells.push([row, col]);
-    drawGrid(selectedCells);
+    drawGrid();
 }
 
 function handleMove(event) {
@@ -154,7 +161,7 @@ function handleMove(event) {
              Math.abs(row - selectedCells[0][0]) === Math.abs(col - selectedCells[0][1])) &&
             (lastCell[0] !== row || lastCell[1] !== col)) {
             selectedCells.push([row, col]);
-            drawGrid(selectedCells);
+            drawGrid();
         }
     }
 }
@@ -166,7 +173,7 @@ function handleEnd() {
     let selectedWord = selectedCells.map(cell => grid[cell[0]][cell[1]]).join("");
 
     if (words.includes(selectedWord) && !foundWords.has(selectedWord)) {
-        let wordColor = colors[foundWords.size % colors.length];
+        let wordColor = pastelColors[foundWords.size % pastelColors.length];
         foundWords.add(selectedWord);
         foundWordPositions[selectedWord] = { positions: [...selectedCells], color: wordColor };
 
@@ -175,6 +182,20 @@ function handleEnd() {
 
     drawGrid();
     updateWordList();
+}
+
+// ✅ Pop-up for game completion
+function showPopup() {
+    document.getElementById("gameCompletePopup").style.display = "block";
+}
+
+function closePopup() {
+    document.getElementById("gameCompletePopup").style.display = "none";
+}
+
+function playAgain() {
+    closePopup();
+    loadPuzzle();
 }
 
 // ✅ Attach event listeners for both Mouse & Touch
@@ -186,12 +207,10 @@ canvas.addEventListener("touchstart", handleStart);
 canvas.addEventListener("touchmove", handleMove);
 canvas.addEventListener("touchend", handleEnd);
 
-// ✅ Ensure Topic Changes Reload the Grid
 $("#topicSelect").on("change", function() {
-    loadPuzzle();  // Reload puzzle when topic changes
+    loadPuzzle();
 });
 
-// ✅ Load topics on page load
 $(document).ready(function() {
     loadTopics();
 });
