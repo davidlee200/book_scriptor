@@ -135,12 +135,25 @@ function markWordAsFound(word) {
     $(`#word-${word}`).addClass("found-word");
 }
 
-// ✅ Selection Logic (Mouse & Touch Support)
+// ✅ Improved function for getting touch & mouse coordinates
 function getCellCoordinates(event) {
     let canvas = document.getElementById("wordCanvas");
     let rect = canvas.getBoundingClientRect();
-    let x = (event.touches ? event.touches[0].clientX : event.clientX) - rect.left;
-    let y = (event.touches ? event.touches[0].clientY : event.clientY) - rect.top;
+
+    let x, y;
+
+    if (event.touches) {
+        x = event.touches[0].pageX - rect.left;
+        y = event.touches[0].pageY - rect.top;
+    } else {
+        x = event.clientX - rect.left;
+        y = event.clientY - rect.top;
+    }
+
+    // Adjust for device pixel ratio
+    x *= canvas.width / rect.width;
+    y *= canvas.height / rect.height;
+
     return [Math.floor(y / cellSize), Math.floor(x / cellSize)];
 }
 
@@ -203,8 +216,8 @@ let canvas = document.getElementById("wordCanvas");
 canvas.addEventListener("mousedown", handleStart);
 canvas.addEventListener("mousemove", handleMove);
 canvas.addEventListener("mouseup", handleEnd);
-canvas.addEventListener("touchstart", handleStart);
-canvas.addEventListener("touchmove", handleMove);
+canvas.addEventListener("touchstart", handleStart, { passive: true });
+canvas.addEventListener("touchmove", handleMove, { passive: true });
 canvas.addEventListener("touchend", handleEnd);
 
 $("#topicSelect").on("change", function() {
